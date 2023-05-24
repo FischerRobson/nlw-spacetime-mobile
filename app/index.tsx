@@ -1,28 +1,74 @@
 import { StatusBar } from 'expo-status-bar'
 import { ImageBackground, Text, View, TouchableOpacity } from 'react-native'
-
+import { styled } from 'nativewind'
+import { useAuthRequest, makeRedirectUri } from 'expo-auth-session'
+import { useEffect } from 'react'
+import { api } from '../src/lib/api'
 import {
   useFonts,
   Roboto_400Regular,
   Roboto_700Bold,
 } from '@expo-google-fonts/roboto'
-
 import { BaiJamjuree_700Bold } from '@expo-google-fonts/bai-jamjuree'
+import { useRouter } from 'expo-router'
 
-import blurBg from './src/assets/bg-blur.png'
-import Stripes from './src/assets/stripes.svg'
-import NlwSpacetimeLogo from './src/assets/nlw-spacetime-logo.svg'
+import blurBg from '../src/assets/bg-blur.png'
+import Stripes from '../src/assets/stripes.svg'
+import NlwSpacetimeLogo from '../src/assets/nlw-spacetime-logo.svg'
 
-import { styled } from 'nativewind'
+import * as SecureStore from 'expo-secure-store'
+
+const discovery = {
+  authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+  tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  revocationEndpoint:
+    'https://github.com/settings/connections/applications/251fc2ad33f9b23541b8',
+}
 
 const StyledStripes = styled(Stripes)
 
 export default function App() {
+  const router = useRouter()
+
   const [hasLoadedFonts] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
     BaiJamjuree_700Bold,
   })
+
+  const [, response, signInWithGithub] = useAuthRequest(
+    {
+      clientId: '251fc2ad33f9b23541b8',
+      scopes: ['identity'],
+      redirectUri: makeRedirectUri({
+        scheme: 'nlwspacetime',
+      }),
+    },
+    discovery,
+  )
+
+  async function handleGithubOauthCode(code: string) {
+    console.log('handleGithubOauthCode')
+    const res = await api.post('/register', { code })
+    console.log(res)
+    const { token } = res.data
+    await SecureStore.setItemAsync('token', token)
+
+    router.push('/memories')
+  }
+
+  useEffect(() => {
+    // console.log(
+    //   makeRedirectUri({
+    //     scheme: 'nlwspacetime',
+    //   }),
+    // ) // get redirect URI to replace in github app
+
+    if (response?.type === 'success') {
+      const { code } = response.params
+      handleGithubOauthCode(code)
+    }
+  }, [response])
 
   if (!hasLoadedFonts) {
     return null
@@ -53,6 +99,7 @@ export default function App() {
         <TouchableOpacity
           activeOpacity={0.7}
           className="rounded-full bg-green-500 px-5 py-2"
+          onPress={() => signInWithGithub()}
         >
           <Text className="font-alt text-sm uppercase text-black">
             Cadastrar lembrança
